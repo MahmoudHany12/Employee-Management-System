@@ -1,201 +1,185 @@
-# Employee Management System (Full Stack)
+# Employee Management System
 
-This repository contains a full-stack Employee Management System:
+Employee Management System is a full-stack HR application for managing users, employee profiles, companies, and departments with role-based access control.
 
-- Backend: Django + Django REST Framework + PostgreSQL + JWT auth
-- Frontend: React + TypeScript + Vite + Material UI
+It is split into two applications:
 
-This document is the single project README for architecture, setup, and API usage.
+- Backend: Django + Django REST Framework + PostgreSQL + JWT authentication
+- Frontend: React + TypeScript + Vite + Material UI + TanStack Query
 
-## 1) Architecture and DB Design (Brief)
+This README is the main project guide. It explains the architecture, folder layout, setup, API endpoints, and the core user flows.
 
-### Architecture approach
+## Project Overview
 
-Backend is organized by domain apps:
+The application supports three roles:
 
-- `accounts`: authentication and user role model
-- `companies`: company CRUD
-- `departments`: department CRUD and company-scoped uniqueness
-- `employees`: employee CRUD and profile access
-- `core`: shared pagination, exceptions, validators
+- `ADMIN`: full access to everything
+- `HR_MANAGER`: can manage employees and related data, with some restrictions on their own profile
+- `EMPLOYEE`: can view and update only their own profile details that are safe to edit
 
-Implementation style in backend:
+Typical use cases:
 
-- `views.py`: HTTP layer
-- `selectors.py`: read/query logic
-- `services.py`: write/business operations
+- manage employee records
+- organize employees by company and department
+- control access by role
+- view the current employee profile
+- maintain a clean profile and account structure
+
+## Project Structure
+
+```text
+eben/
+├─ backend/
+│  ├─ manage.py
+│  ├─ config/
+│  │  ├─ settings/
+│  │  │  ├─ base.py
+│  │  │  ├─ dev.py
+│  │  │  └─ prod.py
+│  │  ├─ urls.py
+│  │  ├─ asgi.py
+│  │  └─ wsgi.py
+│  └─ apps/
+│     ├─ accounts/
+│     ├─ companies/
+│     ├─ departments/
+│     ├─ employees/
+│     └─ core/
+├─ frontend/
+│  ├─ src/
+│  │  ├─ api/
+│  │  ├─ components/
+│  │  ├─ context/
+│  │  ├─ hooks/
+│  │  ├─ layouts/
+│  │  ├─ pages/
+│  │  ├─ routes.tsx
+│  │  ├─ theme/
+│  │  ├─ types/
+│  │  ├─ utils/
+│  │  └─ main.tsx
+│  ├─ package.json
+│  └─ vite.config.ts
+└─ README.md
+```
+
+### Backend app responsibilities
+
+- `accounts`: custom user model, login, tokens, profile identity, and roles
+- `companies`: company CRUD and company-level data
+- `departments`: department CRUD and company-scoped department logic
+- `employees`: employee profile CRUD and profile-specific access rules
+- `core`: shared pagination, exceptions, validation helpers, and utility code
+
+### Frontend app responsibilities
+
+- `api`: Axios clients and endpoint wrappers
+- `components`: reusable UI components
+- `context`: auth and toast state
+- `hooks`: server-state hooks and mutations
+- `layouts`: shell, navigation, and page chrome
+- `pages`: route-level screens
+- `routes.tsx`: routing and role-based navigation
+- `theme`: Material UI theme configuration
+- `utils`: formatting, permissions, constants, storage, and validation helpers
+
+## Architecture
+
+The backend is organized by domain instead of by a single monolithic app. Each domain app typically follows the same pattern:
+
+- `models.py`: database models
+- `serializers.py`: DRF serialization and validation
+- `views.py`: HTTP request handling
+- `urls.py`: endpoint routing
 - `permissions.py`: access rules
+- `selectors.py`: read/query helpers
+- `services.py`: write/business logic
 
-Frontend is a React SPA:
+This structure keeps read logic, write logic, and request handling separated so the codebase is easier to maintain as it grows.
 
-- Role-aware routing and navigation
-- JWT-based auth session
-- API communication via Axios
-- Server-state via TanStack Query
-- Forms via React Hook Form + Zod
+The frontend is a single-page application with:
 
-### RBAC model
+- protected routes
+- role-aware navigation
+- JWT access and refresh token handling
+- API-driven screens using TanStack Query
+- controlled forms with React Hook Form and Zod
 
-- `ADMIN`: full access
-- `HR_MANAGER`: company-scoped access
-- `EMPLOYEE`: own profile-oriented access
+## Data Model
 
-### Database design / schema considerations
+The main domain entities are:
 
-Main entities:
-
-- `User` (custom auth user)
-  - fields include `role`, optional `assigned_company`
+- `User`
+  - custom auth model
+  - stores the user role
+  - may link to an assigned company
 - `Company`
-  - one-to-many with `Department`
-  - one-to-many with `Employee`
+  - top-level organization record
+  - has many departments
+  - has many employees
 - `Department`
-  - belongs to one `Company`
-  - unique constraint: `(name, company)`
+  - belongs to one company
+  - department names are unique within the same company
 - `Employee`
-  - one-to-one with `User` via `employee_profile`
-  - belongs to one `Company`
-  - optional `Department`
-  - unique `email`
+  - employee profile linked to a user account
+  - belongs to one company
+  - may belong to one department
+  - stores contact and employment information
 
-Pagination is standardized as:
+## Role Rules
 
-```json
-{
-  "count": 120,
-  "next": "http://localhost:8000/api/employees/?page=2",
-  "previous": null,
-  "results": []
-}
-```
+The application uses role-based permissions to keep profile and admin flows separate.
 
-## 2) Local Setup Instructions
+- `ADMIN`
+  - can manage all companies, departments, and employees
+  - can edit role and active status fields
+  - can access all dashboard data
+- `HR_MANAGER`
+  - can manage employees and organizational data within the app flow
+  - can edit other employees
+  - when editing their own profile, restricted fields such as role/company/department are hidden or disabled
+- `EMPLOYEE`
+  - can view their own profile
+  - can update safe personal/account fields on their own profile
+  - cannot edit role, company, or department assignment
 
-## Prerequisites
+## Frontend Flow
 
-- Python 3.12+
-- Node.js 18+
-- PostgreSQL 14+
+The main pages are:
 
-## 2.1 Clone and enter project
+- login page
+- dashboard page
+- employees list and employee form
+- employee profile page
+- companies list and company form
+- departments list and department form
 
-```powershell
-cd C:\path\to\your\workspace
-git clone <your-repo-url>
-cd eben
-```
+Important behaviors:
 
-## 2.2 Backend setup (Django)
+- employees land on their profile after login
+- admins and HR managers land on the dashboard after login
+- employees cannot access the admin dashboard route directly
+- the profile page shows the username at the top
+- the employee form hides role controls from non-admin users
+- employee self-editing is limited to safe profile fields
 
-1. Create PostgreSQL database (example name used by project):
-
-```sql
-CREATE DATABASE employee_management;
-```
-
-2. Create and configure backend environment file:
-
-```powershell
-cd backend
-copy .env.example .env
-```
-
-3. Edit `backend/.env` and ensure values are correct for your machine:
-
-- `DB_NAME`
-- `DB_USER`
-- `DB_PASSWORD`
-- `DB_HOST`
-- `DB_PORT`
-- `DJANGO_SECRET_KEY`
-- `DEBUG`
-- `ALLOWED_HOSTS`
-
-4. Install Python dependencies and run migrations:
-
-```powershell
-cd ..
-.venv\Scripts\python.exe -m pip install -r backend\requirements.txt
-.venv\Scripts\python.exe backend\manage.py migrate
-```
-
-5. (Optional) Create admin user:
-
-```powershell
-.venv\Scripts\python.exe backend\manage.py createsuperuser
-```
-
-6. Start backend:
-
-```powershell
-.venv\Scripts\python.exe backend\manage.py runserver 127.0.0.1:8000
-```
-
-## 2.3 Frontend setup (React)
-
-1. Install dependencies and configure env:
-
-```powershell
-cd frontend
-npm install
-copy .env.example .env
-```
-
-2. Verify `frontend/.env` contains:
-
-```env
-VITE_API_URL=http://localhost:8000/api
-```
-
-3. Start frontend:
-
-```powershell
-npm run dev
-```
-
-Frontend default URL: `http://localhost:5173`
-
-## 2.4 Build checks
-
-```powershell
-cd frontend
-npm run build
-```
-
-## 3) API Documentation
+## Backend API
 
 Base API prefix:
 
 - `http://localhost:8000/api/`
 
-Interactive docs:
+Documentation endpoints:
 
 - Swagger UI: `http://localhost:8000/api/docs/`
 - ReDoc: `http://localhost:8000/api/redoc/`
 - OpenAPI schema: `http://localhost:8000/api/schema/`
-
-Use Swagger UI for complete request/response schemas.
 
 ### Auth endpoints
 
 - `POST /api/auth/login/`
 - `POST /api/auth/refresh/`
 - `GET /api/auth/me/`
-
-Request login example:
-
-```json
-{
-  "username": "admin",
-  "password": "AdminPass123!"
-}
-```
-
-Auth header for protected endpoints:
-
-```http
-Authorization: Bearer <access_token>
-```
 
 ### Company endpoints
 
@@ -213,10 +197,10 @@ Authorization: Bearer <access_token>
 - `PATCH /api/departments/{id}/`
 - `DELETE /api/departments/{id}/`
 
-Common query parameter:
+Useful filter:
 
-- `company` for filtering departments by company
-  - example: `GET /api/departments/?company=1`
+- `company` filters departments by company
+- example: `GET /api/departments/?company=1`
 
 ### Employee endpoints
 
@@ -225,16 +209,31 @@ Common query parameter:
 - `GET /api/employees/{id}/`
 - `PATCH /api/employees/{id}/`
 - `DELETE /api/employees/{id}/`
-- `GET /api/employees/me/` (current authenticated employee profile)
+- `GET /api/employees/me/`
 
-### Common query parameters
+### Pagination
+
+List endpoints use a standard paginated response:
+
+```json
+{
+  "count": 120,
+  "next": "http://localhost:8000/api/employees/?page=2",
+  "previous": null,
+  "results": []
+}
+```
+
+Common query parameters:
 
 - `page`
 - `page_size`
 
 Example:
 
-- `GET /api/employees/?page=1&page_size=25`
+```text
+GET /api/employees/?page=1&page_size=25
+```
 
 ### Example employee response
 
@@ -257,7 +256,151 @@ Example:
 }
 ```
 
-### Error format
+### Auth header
+
+Protected endpoints require a bearer token:
+
+```http
+Authorization: Bearer <access_token>
+```
+
+## Local Setup
+
+### Prerequisites
+
+- Python 3.12+
+- Node.js 18+
+- PostgreSQL 14+
+
+### 1. Clone the repository
+
+```powershell
+git clone https://github.com/MahmoudHany12/Employee-Management-System.git
+cd Employee-Management-System
+```
+
+### 2. Backend setup
+
+Create the database:
+
+```sql
+CREATE DATABASE employee_management;
+```
+
+Copy the environment file:
+
+```powershell
+cd backend
+copy .env.example .env
+```
+
+Update `backend/.env` with your local values:
+
+- `DB_NAME`
+- `DB_USER`
+- `DB_PASSWORD`
+- `DB_HOST`
+- `DB_PORT`
+- `DJANGO_SECRET_KEY`
+- `DEBUG`
+- `ALLOWED_HOSTS`
+
+Install dependencies and run migrations:
+
+```powershell
+python -m pip install -r requirements.txt
+python manage.py migrate
+```
+
+Optional admin user:
+
+```powershell
+python manage.py createsuperuser
+```
+
+Start the backend:
+
+```powershell
+python manage.py runserver 127.0.0.1:8000
+```
+
+### 3. Frontend setup
+
+Open a second terminal:
+
+```powershell
+cd frontend
+npm install
+copy .env.example .env
+```
+
+Confirm `frontend/.env` contains:
+
+```env
+VITE_API_URL=http://localhost:8000/api
+```
+
+Start the frontend:
+
+```powershell
+npm run dev
+```
+
+Frontend URL:
+
+- `http://localhost:5173`
+
+### 4. Build verification
+
+```powershell
+cd frontend
+npm run build
+```
+
+## Scripts
+
+### Frontend scripts
+
+- `npm run dev`: start the Vite dev server
+- `npm run build`: type-check and build production assets
+- `npm run preview`: preview the production build
+- `npm run lint`: run ESLint
+- `npm run typecheck`: run TypeScript type checking only
+
+## Configuration Notes
+
+Backend configuration is driven by `backend/config/settings/base.py` and environment variables loaded from `backend/.env`.
+
+Frontend configuration is driven by `frontend/.env`, especially `VITE_API_URL`.
+
+The app is set up for local development with:
+
+- Django API on port `8000`
+- Vite frontend on port `5173`
+- CORS enabled for common local origins
+
+## Project Conventions
+
+- API requests are centralized through Axios wrappers
+- Server state is managed with TanStack Query rather than ad hoc fetch calls
+- Forms use React Hook Form with Zod validation
+- Role checks are enforced in routing and in page-level UI logic
+- Reusable UI lives in shared components instead of duplicated page code
+
+## Troubleshooting
+
+- If the backend refuses to start, verify PostgreSQL is running and the database name in `.env` exists.
+- If the frontend cannot reach the API, check `VITE_API_URL` and the backend CORS settings.
+- If a login succeeds but the page redirects incorrectly, clear browser storage and sign in again.
+- If you see permission issues, confirm the signed-in user role matches the expected route.
+
+## API Error Shape
+
+Most validation and permission errors are returned in a structured DRF format, usually with a top-level `detail` or field-specific messages. Check Swagger UI for exact payloads on each endpoint.
+
+## License
+
+No license has been specified in this repository yet.
 
 Typical error envelope:
 
